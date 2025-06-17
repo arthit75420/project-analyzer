@@ -1,0 +1,19 @@
+{
+  "name": "analyze-project",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@babel/parser": "^7.27.5",
+    "@babel/traverse": "^7.27.4",
+    "cloc": "^2.4.0-cloc",
+    "glob": "^11.0.3",
+    "xlsx": "^0.18.5"
+  }
+}
