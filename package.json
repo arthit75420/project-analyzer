@@ -1,19 +1,15 @@
 {
-  "name": "analyze-project",
+  "name": "project-analyzer",
   "version": "1.0.0",
-  "main": "index.js",
+  "bin": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "@babel/parser": "^7.27.5",
-    "@babel/traverse": "^7.27.4",
-    "cloc": "^2.4.0-cloc",
-    "glob": "^11.0.3",
-    "xlsx": "^0.18.5"
+    "@babel/parser": "^7.x",
+    "@babel/traverse": "^7.x",
+    "cli-progress": "^3.x",
+    "glob": "^10.x",
+    "xlsx": "^0.18.x"
   }
 }
