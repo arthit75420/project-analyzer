@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const fs = require("fs");
 const path = require("path");
 const glob = require("glob");
@@ -6,6 +8,21 @@ const traverse = require("@babel/traverse").default;
 const xlsx = require("xlsx");
 const cliProgress = require("cli-progress");
 
+// ✅ รับ path จาก argument --path=...
+const argPath = process.argv.find((arg) => arg.startsWith("--path="));
+if (!argPath) {
+  console.error("❌ กรุณาระบุ path โดยใช้ --path=... เช่น:");
+  console.error("   project-analyzer --path=/your/project/path");
+  process.exit(1);
+}
+const srcPath = argPath.replace("--path=", "").trim();
+
+if (!fs.existsSync(srcPath) || !fs.statSync(srcPath).isDirectory()) {
+  console.error(`❌ ไม่พบ path ที่ระบุ: ${srcPath}`);
+  process.exit(1);
+}
+
+// ✅ นามสกุลที่ไม่ต้องวิเคราะห์
 const ignoredExtensions = [
   ".png",
   ".wav",
@@ -22,6 +39,7 @@ const ignoredExtensions = [
   ".properties",
 ];
 
+// ✅ Progress bar
 const barAnalyzing = new cliProgress.SingleBar(
   {
     format: "Analyzing [{bar}] {percentage}% | {value}/{total} files",
@@ -32,7 +50,7 @@ const barAnalyzing = new cliProgress.SingleBar(
   cliProgress.Presets.shades_classic
 );
 
-const srcPath = "/Users/7p110058/Works/BAY/frontend-mobile-app-rn";
+// ✅ Scan เฉพาะไฟล์ .js, .jsx, .ts, .tsx ยกเว้น node_modules, build, dist
 const jsTsFiles = glob.sync(`${srcPath}/**/*.{js,jsx,ts,tsx}`, {
   ignore: [
     `${srcPath}/**/node_modules/**`,
@@ -41,6 +59,7 @@ const jsTsFiles = glob.sync(`${srcPath}/**/*.{js,jsx,ts,tsx}`, {
   ],
 });
 
+// ✅ Scan ios และ android ทุกไฟล์ ยกเว้น Pods/build
 const iosAndroidFiles = glob.sync(`${srcPath}/+(ios|android)/**/*`, {
   ignore: [
     `${srcPath}/ios/build/**`,
@@ -54,6 +73,7 @@ const iosAndroidFiles = glob.sync(`${srcPath}/+(ios|android)/**/*`, {
 const files = [...jsTsFiles, ...iosAndroidFiles];
 barAnalyzing.start(files.length, 0);
 
+// ✅ เก็บผลลัพธ์
 const rootFoldersCount = {};
 let functionCount = 0;
 let classCount = 0;
@@ -69,7 +89,7 @@ function analyzeFile(filePath) {
 
   const code = fs.readFileSync(filePath, "utf8");
   charCount += code.length;
-  totalLines += code.split(/\r?\n/).length; // ✅ นับบรรทัดเอง
+  totalLines += code.split(/\r?\n/).length;
 
   try {
     const ast = parser.parse(code, {
@@ -122,17 +142,24 @@ files.forEach((filePath) => {
   const relative = path.relative(srcPath, filePath);
   const topLevel = relative.split(path.sep)[0];
   if (!topLevel || topLevel === "node_modules") return;
-  if (!rootFoldersCount[topLevel]) rootFoldersCount[topLevel] = 0;
-  rootFoldersCount[topLevel]++;
+  rootFoldersCount[topLevel] = (rootFoldersCount[topLevel] || 0) + 1;
 });
 
 barAnalyzing.stop();
-console.log("กำลังเขียนไฟล์รายงานผลการวิเคราะห์โปรเจกต์...");
+console.log("📊 กำลังเขียนไฟล์รายงาน...");
 
-// Read dependencies
-const pkgJson = JSON.parse(fs.readFileSync(`${srcPath}/package.json`, "utf8"));
-const dependencies = Object.keys(pkgJson.dependencies || {});
-const devDependencies = Object.keys(pkgJson.devDependencies || {});
+// ✅ อ่าน package.json
+let dependencies = [],
+  devDependencies = [];
+try {
+  const pkgJson = JSON.parse(
+    fs.readFileSync(path.join(srcPath, "package.json"), "utf8")
+  );
+  dependencies = Object.keys(pkgJson.dependencies || {});
+  devDependencies = Object.keys(pkgJson.devDependencies || {});
+} catch (e) {
+  console.warn("⚠️ ไม่พบหรืออ่าน package.json ไม่ได้");
+}
 
 const result = {
   total_files: files.length,
@@ -142,15 +169,15 @@ const result = {
   total_lines: totalLines,
   dependencies_count: dependencies.length,
   devDependencies_count: devDependencies.length,
-  dependencies: dependencies,
-  devDependencies: devDependencies,
+  dependencies,
+  devDependencies,
   parse_errors: parseErrors,
 };
 
-// Write to JSON
+// ✅ เขียน JSON
 fs.writeFileSync("project_analysis.json", JSON.stringify(result, null, 2));
 
-// Write to XLSX
+// ✅ เขียน Excel
 const workbook = xlsx.utils.book_new();
 const summarySheet = xlsx.utils.aoa_to_sheet([
   ["Metric", "Value"],
@@ -185,3 +212,19 @@ xlsx.writeFile(workbook, "project_analysis.xlsx");
 console.log(
   "✅ วิเคราะห์โปรเจกต์เสร็จแล้ว: project_analysis.json / project_analysis.xlsx"
 );
+console.log("📁 ไฟล์ JSON และ Excel ถูกสร้างเรียบร้อยแล้ว");
+console.log("📊 สรุปผลการวิเคราะห์:");
+console.log(" - - - - - - - - - -");
+console.log(`✅ - Total Files: ${result.total_files}`);
+console.log(`✅ - Function Components: ${result.function_components}`);
+console.log(`✅ - Class Components: ${result.class_components}`);
+console.log(`✅ - Total Characters: ${result.total_characters}`);
+console.log(`✅ - Total Lines of Code: ${result.total_lines}`);
+console.log(`✅ - Dependencies: ${result.dependencies_count}`);
+console.log(`✅ - Dev Dependencies: ${result.devDependencies_count}`);
+if (result.parse_errors.length > 0) {
+  console.log(`⚠️  - Parse Errors: ${result.parse_errors.length}`);
+}
+console.log(" - - - - - - - - - -");
+console.log("📂 ไฟล์รายงานถูกสร้างในรูปแบบ JSON และ Excel");
+console.log("🎉 ขอบคุณที่ใช้ Project Analyzer!");
